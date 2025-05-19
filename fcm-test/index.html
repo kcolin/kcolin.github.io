@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FCM Тестовый стенд</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background-color: #f9f9f9;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        pre {
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+
+        .notification {
+            border-left: 4px solid #4CAF50;
+            background-color: #e7f3e8;
+            padding: 10px 15px;
+            margin-bottom: 10px;
+        }
+
+        .notification-title {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .error {
+            color: #D8000C;
+            background-color: #FFD2D2;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        .success {
+            color: #4F8A10;
+            background-color: #DFF2BF;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        #tokenDisplay {
+            word-break: break-all;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+<h1>FCM Тестовый стенд - ffff</h1>
+
+<div class="container">
+    <h2>Статус службы</h2>
+    <div id="serviceWorkerStatus">Проверка статуса service worker...</div>
+    <div id="pushStatus">Проверка поддержки push-уведомлений...</div>
+    <div id="notificationStatus">Проверка разрешения на уведомления...</div>
+</div>
+
+<div class="container">
+    <h2>Управление подпиской</h2>
+    <button id="subscribeButton" disabled>Подписаться на уведомления</button>
+    <button id="unsubscribeButton" disabled>Отписаться от уведомлений</button>
+
+    <div id="subscriptionContainer" class="hidden">
+        <h3>Информация о подписке:</h3>
+        <p>Токен FCM: <span id="tokenDisplay"></span></p>
+        <button id="copyTokenButton">Скопировать токен</button>
+        <div id="copySuccess" class="success hidden">Токен скопирован в буфер обмена!</div>
+    </div>
+</div>
+
+<div class="container">
+    <h2>Полученные уведомления</h2>
+    <div id="notificationsContainer">
+        <p>Здесь будут отображаться полученные уведомления.</p>
+    </div>
+</div>
+
+<div class="container">
+    <h2>Подписка на темы</h2>
+    <div>
+        <label for="topicName">Название темы:</label>
+        <input type="text" id="topicName" placeholder="news">
+        <button id="subscribeTopicButton">Подписаться на тему</button>
+        <button id="unsubscribeTopicButton">Отписаться от темы</button>
+    </div>
+    <div id="topicsContainer">
+        <h3>Подписки на темы:</h3>
+        <ul id="topicsList"></ul>
+    </div>
+</div>
+
+<div class="container">
+    <h2>Debug-информация</h2>
+    <div>
+        <button id="clearLogsButton">Очистить логи</button>
+    </div>
+    <pre id="logs"></pre>
+</div>
+
+<!-- Подключаем Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-messaging.js"></script>
+
+<script>
+    // Конфигурация Firebase (заполните из консоли Firebase)
+    const firebaseConfig = {
+        apiKey: "AIzaSyAalCX2FgJioQ1iWBn26_gmk5Mh89UGpTo",
+        authDomain: "volos-rent-357a1.firebaseapp.com",
+        projectId: "volos-rent-357a1",
+        storageBucket: "volos-rent-357a1.firebasestorage.app",
+        messagingSenderId: "512437606780",
+        appId: "1:512437606780:web:241842c1ef826307efacf9"
+    };
+
+    // Глобальные переменные
+    let messaging;
+    let swRegistration;
+    const subscribedTopics = new Set();
+
+    // Инициализация
+    function initApp() {
+        // Инициализация Firebase
+        firebase.initializeApp(firebaseConfig);
+        messaging = firebase.messaging();
+
+        // Обновляем UI
+        updateUI();
+
+        // Инициализируем service worker
+        initServiceWorker();
+
+        // Обработчики кнопок
+        document.getElementById('subscribeButton').addEventListener('click', subscribeUser);
+        document.getElementById('unsubscribeButton').addEventListener('click', unsubscribeUser);
+        document.getElementById('copyTokenButton').addEventListener('click', copyTokenToClipboard);
+        document.getElementById('clearLogsButton').addEventListener('click', clearLogs);
+        document.getElementById('subscribeTopicButton').addEventListener('click', subscribeTopic);
+        document.getElementById('unsubscribeTopicButton').addEventListener('click', unsubscribeTopic);
+
+        // Загружаем подписки на темы из localStorage
+        loadTopicsFromStorage();
+    }
+
+    // Инициализация Service Worker
+    async function initServiceWorker() {
+        if ('serviceWorker' in navigator && 'PushManager' in window) {
+            try {
+                // Регистрируем service worker
+                swRegistration = await navigator.serviceWorker.register('./firebase-messaging-sw.js');
+                logMessage('Service Worker зарегистрирован');
+                document.getElementById('serviceWorkerStatus').textContent = 'Service Worker успешно зарегистрирован';
+                document.getElementById('serviceWorkerStatus').className = 'success';
+
+                // Проверяем поддержку push
+                document.getElementById('pushStatus').textContent = 'Push-уведомления поддерживаются';
+                document.getElementById('pushStatus').className = 'success';
+
+                // Проверяем текущее разрешение на уведомления
+                checkNotificationPermission();
+
+                // Проверяем существующую подписку
+                checkSubscription();
+
+                // Слушаем сообщения от Service Worker
+                navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
+
+                // Включаем кнопки
+                document.getElementById('subscribeButton').disabled = false;
+            } catch (error) {
+                console.error('Ошибка регистрации Service Worker:', error);
+                logMessage('Ошибка регистрации Service Worker: ' + error.message);
+                document.getElementById('serviceWorkerStatus').textContent = 'Ошибка регистрации Service Worker: ' + error.message;
+                document.getElementById('serviceWorkerStatus').className = 'error';
+            }
+        } else {
+            document.getElementById('serviceWorkerStatus').textContent = 'Service Workers не поддерживаются в этом браузере';
+            document.getElementById('serviceWorkerStatus').className = 'error';
+            document.getElementById('pushStatus').textContent = 'Push-уведомления не поддерживаются в этом браузере';
+            document.getElementById('pushStatus').className = 'error';
+        }
+    }
+
+    // Проверка разрешения на уведомления
+    function checkNotificationPermission() {
+        if (Notification.permission === 'granted') {
+            document.getElementById('notificationStatus').textContent = 'Разрешение на уведомления получено';
+            document.getElementById('notificationStatus').className = 'success';
+        } else if (Notification.permission === 'denied') {
+            document.getElementById('notificationStatus').textContent = 'Разрешение на уведомления отклонено пользователем';
+            document.getElementById('notificationStatus').className = 'error';
+        } else {
+            document.getElementById('notificationStatus').textContent = 'Разрешение на уведомления не запрошено';
+            document.getElementById('notificationStatus').className = '';
+        }
+    }
+
+    // Проверка существующей подписки
+    async function checkSubscription() {
+        try {
+            const currentToken = await messaging.getToken();
+            if (currentToken) {
+                logMessage('Найдена существующая подписка с токеном: ' + currentToken);
+                updateSubscriptionUI(currentToken);
+                document.getElementById('unsubscribeButton').disabled = false;
+                document.getElementById('subscribeButton').disabled = true;
+            } else {
+                logMessage('Подписка не найдена');
+                document.getElementById('unsubscribeButton').disabled = true;
+                document.getElementById('subscribeButton').disabled = false;
+            }
+        } catch (error) {
+            console.error('Ошибка при проверке подписки:', error);
+            logMessage('Ошибка при проверке подписки: ' + error.message);
+        }
+    }
+
+    // Подписка пользователя
+    async function subscribeUser() {
+        try {
+            // Запрашиваем разрешение на уведомления
+            const permission = await Notification.requestPermission();
+
+            if (permission === 'granted') {
+                // Обновляем статус уведомлений
+                document.getElementById('notificationStatus').textContent = 'Разрешение на уведомления получено';
+                document.getElementById('notificationStatus').className = 'success';
+
+                // Получаем токен
+                const currentToken = await messaging.getToken();
+
+                if (currentToken) {
+                    logMessage('Успешная подписка с токеном: ' + currentToken);
+                    updateSubscriptionUI(currentToken);
+                    document.getElementById('unsubscribeButton').disabled = false;
+                    document.getElementById('subscribeButton').disabled = true;
+                } else {
+                    logMessage('Не удалось получить токен');
+                    console.error('Не удалось получить токен устройства.');
+                }
+            } else {
+                logMessage('Пользователь отклонил разрешение на уведомления');
+                document.getElementById('notificationStatus').textContent = 'Разрешение на уведомления отклонено пользователем';
+                document.getElementById('notificationStatus').className = 'error';
+            }
+        } catch (error) {
+            console.error('Ошибка подписки:', error);
+            logMessage('Ошибка подписки: ' + error.message);
+        }
+    }
+
+    // Отписка пользователя
+    async function unsubscribeUser() {
+        try {
+            const currentToken = await messaging.getToken();
+
+            if (currentToken) {
+                // Удаляем токен
+                await messaging.deleteToken();
+                logMessage('Успешная отписка от уведомлений');
+
+                // Обновляем UI
+                document.getElementById('subscriptionContainer').classList.add('hidden');
+                document.getElementById('unsubscribeButton').disabled = true;
+                document.getElementById('subscribeButton').disabled = false;
+            }
+        } catch (error) {
+            console.error('Ошибка отписки:', error);
+            logMessage('Ошибка отписки: ' + error.message);
+        }
+    }
+
+    // Обновление UI с информацией о подписке
+    function updateSubscriptionUI(token) {
+        document.getElementById('tokenDisplay').textContent = token;
+        document.getElementById('subscriptionContainer').classList.remove('hidden');
+    }
+
+    // Обработка сообщений от Service Worker
+    function handleServiceWorkerMessage(event) {
+        const message = event.data;
+
+        if (message.type === 'NOTIFICATION_RECEIVED') {
+            const notification = message.notification;
+
+            // Добавляем уведомление в UI
+            const notificationElement = document.createElement('div');
+            notificationElement.className = 'notification';
+
+            const titleElement = document.createElement('div');
+            titleElement.className = 'notification-title';
+            titleElement.textContent = notification.title || 'Без заголовка';
+
+            const bodyElement = document.createElement('div');
+            bodyElement.textContent = notification.body || 'Без содержимого';
+
+            const dataElement = document.createElement('div');
+            dataElement.style.fontSize = '0.9em';
+            dataElement.style.color = '#666';
+
+            if (notification.data) {
+                dataElement.textContent = 'Дополнительные данные: ' + JSON.stringify(notification.data);
+            }
+
+            const timeElement = document.createElement('div');
+            timeElement.style.fontSize = '0.8em';
+            timeElement.style.color = '#999';
+            timeElement.textContent = new Date().toLocaleString();
+
+            notificationElement.appendChild(titleElement);
+            notificationElement.appendChild(bodyElement);
+            notificationElement.appendChild(dataElement);
+            notificationElement.appendChild(timeElement);
+
+            const container = document.getElementById('notificationsContainer');
+
+            // Проверяем, есть ли дочерние элементы
+            if (container.firstChild && container.firstChild.tagName === 'P') {
+                container.removeChild(container.firstChild);
+            }
+
+            container.insertBefore(notificationElement, container.firstChild);
+
+            logMessage('Получено уведомление: ' + notification.title);
+        }
+    }
+
+    // Копирование токена в буфер обмена
+    function copyTokenToClipboard() {
+        const tokenText = document.getElementById('tokenDisplay').textContent;
+        navigator.clipboard.writeText(tokenText).then(() => {
+            const copySuccess = document.getElementById('copySuccess');
+            copySuccess.classList.remove('hidden');
+            setTimeout(() => {
+                copySuccess.classList.add('hidden');
+            }, 3000);
+            logMessage('Токен скопирован в буфер обмена');
+        }).catch(err => {
+            console.error('Ошибка при копировании токена:', err);
+            logMessage('Ошибка при копировании токена: ' + err.message);
+        });
+    }
+
+    // Логирование сообщений
+    function logMessage(message) {
+        const logs = document.getElementById('logs');
+        const timestamp = new Date().toLocaleTimeString();
+        logs.textContent = `[${timestamp}] ${message}\n${logs.textContent}`;
+    }
+
+    // Очистка логов
+    function clearLogs() {
+        document.getElementById('logs').textContent = '';
+    }
+
+    // Подписка на тему
+    function subscribeTopic() {
+        const topicInput = document.getElementById('topicName');
+        const topic = topicInput.value.trim();
+
+        if (!topic) {
+            logMessage('Введите название темы');
+            return;
+        }
+
+        if (subscribedTopics.has(topic)) {
+            logMessage(`Вы уже подписаны на тему "${topic}"`);
+            return;
+        }
+
+        // В реальном приложении здесь был бы API-вызов для подписки на тему
+        // FCM не позволяет напрямую подписывать на темы из клиента, это делается через backend
+        subscribedTopics.add(topic);
+        saveTopicsToStorage();
+        updateTopicsList();
+
+        logMessage(`Подписка на тему "${topic}" успешно оформлена`);
+        topicInput.value = '';
+    }
+
+    // Отписка от темы
+    function unsubscribeTopic() {
+        const topicInput = document.getElementById('topicName');
+        const topic = topicInput.value.trim();
+
+        if (!topic) {
+            logMessage('Введите название темы');
+            return;
+        }
+
+        if (!subscribedTopics.has(topic)) {
+            logMessage(`Вы не подписаны на тему "${topic}"`);
+            return;
+        }
+
+        // В реальном приложении здесь был бы API-вызов для отписки от темы
+        subscribedTopics.delete(topic);
+        saveTopicsToStorage();
+        updateTopicsList();
+
+        logMessage(`Отписка от темы "${topic}" успешно выполнена`);
+        topicInput.value = '';
+    }
+
+    // Обновление списка тем
+    function updateTopicsList() {
+        const topicsList = document.getElementById('topicsList');
+        topicsList.innerHTML = '';
+
+        if (subscribedTopics.size === 0) {
+            const li = document.createElement('li');
+            li.textContent = 'Нет подписок на темы';
+            topicsList.appendChild(li);
+            return;
+        }
+
+        subscribedTopics.forEach(topic => {
+            const li = document.createElement('li');
+            li.textContent = topic;
+            topicsList.appendChild(li);
+        });
+    }
+
+    // Сохранение тем в localStorage
+    function saveTopicsToStorage() {
+        localStorage.setItem('subscribedTopics', JSON.stringify([...subscribedTopics]));
+    }
+
+    // Загрузка тем из localStorage
+    function loadTopicsFromStorage() {
+        const topics = localStorage.getItem('subscribedTopics');
+
+        if (topics) {
+            try {
+                const parsedTopics = JSON.parse(topics);
+                subscribedTopics.clear();
+                parsedTopics.forEach(topic => subscribedTopics.add(topic));
+                updateTopicsList();
+            } catch (error) {
+                console.error('Ошибка при загрузке тем из localStorage:', error);
+            }
+        }
+    }
+
+    // Обновление UI в зависимости от состояния
+    function updateUI() {
+        // Настраиваем обработчик сообщений Firebase
+        messaging.onMessage((payload) => {
+            logMessage('Получено сообщение в foreground: ' + JSON.stringify(payload));
+
+            // Отображаем уведомление
+            const notification = payload.notification;
+
+            // Отправляем уведомление в Service Worker для обработки
+            if (swRegistration && swRegistration.active) {
+                swRegistration.active.postMessage({
+                    type: 'NOTIFICATION_RECEIVED',
+                    notification: {
+                        title: notification.title,
+                        body: notification.body,
+                        data: payload.data
+                    }
+                });
+            }
+
+            // Создаем уведомление, если браузер в фокусе
+            if (Notification.permission === 'granted') {
+                const notificationOptions = {
+                    body: notification.body,
+                    icon: notification.icon || '/favicon.ico',
+                    data: payload.data
+                };
+
+                swRegistration.showNotification(notification.title, notificationOptions);
+            }
+        });
+    }
+
+    // Инициализация приложения при загрузке
+    window.addEventListener('load', initApp);
+</script>
+</body>
+</html>
