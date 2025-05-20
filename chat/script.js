@@ -282,6 +282,13 @@ function renderChatList() {
         return;
     }
 
+    // Сортируем чаты по времени последнего сообщения (сначала новые)
+    filteredChats.sort((a, b) => {
+        const timeA = a.last_message_at ? new Date(a.last_message_at).getTime() : 0;
+        const timeB = b.last_message_at ? new Date(b.last_message_at).getTime() : 0;
+        return timeB - timeA;
+    });
+
     filteredChats.forEach(chat => {
         const chatItem = document.createElement('div');
         chatItem.className = 'chat-item';
@@ -351,16 +358,44 @@ function selectChat(chat) {
     activeChat = chat;
     renderChatList(); // Update active state in the list
     renderChatWindow(chat);
-    fetchMessages(chat.id);
 
-    // Mark messages as read when selecting a chat
+    // Сначала отмечаем чат как прочитанный
     markChatAsRead(chat.id);
+
+    // Затем загружаем сообщения
+    fetchMessages(chat.id);
 }
 
 // Mark chat messages as read
 function markChatAsRead(chatId) {
-    if (!wsConnection || wsConnection.readyState !== WebSocket.OPEN) {
-        logToConsole('WebSocket connection is not open, cannot mark messages as read', 'error');
+    if (!wsConnection) {
+        logToConsole('WebSocket connection does not exist, attempting to reconnect...', 'warning');
+        ensureValidToken()
+            .then(() => {
+                connectWebSocket();
+                setTimeout(() => markChatAsRead(chatId), 1000); // Попробуем снова через секунду
+            })
+            .catch(error => {
+                logToConsole(`Error refreshing token for markChatAsRead: ${error.message}`, 'error');
+            });
+        return;
+    }
+
+    if (wsConnection.readyState !== WebSocket.OPEN) {
+        logToConsole(`WebSocket connection is not open (state: ${wsConnection.readyState}), cannot mark messages as read`, 'warning');
+
+        // Если соединение закрыто (readyState === 3), попытаемся переподключиться
+        if (wsConnection.readyState === WebSocket.CLOSED) {
+            logToConsole('Attempting to reconnect WebSocket...', 'info');
+            ensureValidToken()
+                .then(() => {
+                    connectWebSocket();
+                    setTimeout(() => markChatAsRead(chatId), 1000); // Попробуем снова через секунду
+                })
+                .catch(error => {
+                    logToConsole(`Error refreshing token for reconnection: ${error.message}`, 'error');
+                });
+        }
         return;
     }
 
@@ -369,8 +404,28 @@ function markChatAsRead(chatId) {
         chat_id: chatId
     };
 
-    wsConnection.send(JSON.stringify(readMessage));
-    logToConsole(`Marked chat ${chatId} as read`, 'info');
+    try {
+        wsConnection.send(JSON.stringify(readMessage));
+        logToConsole(`Marked chat ${chatId} as read`, 'info');
+
+        // Обновляем локальное состояние чата, чтобы сразу показать, что чат прочитан
+        // Это сделает UI более отзывчивым, не дожидаясь обновления с сервера
+        if (activeChat && activeChat.id === chatId) {
+            activeChat.read = true;
+        }
+
+        // Обновляем индикатор в списке чатов
+        chatList.forEach(chat => {
+            if (chat.id === chatId) {
+                chat.read = true;
+            }
+        });
+
+        // Перерисовываем список чатов с обновленным состоянием
+        renderChatList();
+    } catch (error) {
+        logToConsole(`Error sending read event: ${error.message}`, 'error');
+    }
 }
 
 // Render the active chat window
@@ -552,12 +607,31 @@ function sendMessage() {
             logToConsole(`Message sent: ${messageText}`, 'info');
             messageInput.value = '';
 
-            // Optimistically add the message to the UI
+            // Оптимистично обновляем данные чата
+            const now = new Date();
+
+            // Обновляем активный чат
+            activeChat.last_message = messageText;
+            activeChat.last_message_at = now.toISOString();
+            activeChat.read = true; // Наши собственные сообщения всегда прочитаны
+
+            // Обновляем чат в списке
+            const chatIndex = chatList.findIndex(chat => chat.id === activeChat.id);
+            if (chatIndex !== -1) {
+                chatList[chatIndex].last_message = messageText;
+                chatList[chatIndex].last_message_at = now.toISOString();
+                chatList[chatIndex].read = true;
+            }
+
+            // Перерисовываем список чатов
+            renderChatList();
+
+            // Оптимистично добавляем сообщение в UI
             const messagesContainer = document.getElementById('chat-messages');
             const messageElement = document.createElement('div');
             messageElement.className = 'message sent';
 
-            const timestamp = formatTimestamp(new Date());
+            const timestamp = formatTimestamp(now);
 
             messageElement.innerHTML = `
                 <div class="message-content">${messageText}</div>
@@ -650,6 +724,31 @@ function connectWebSocket() {
                 // Проверяем, является ли отправитель текущим пользователем
                 const isSelfMessage = data.payload.sender === currentUserId;
 
+                // Находим чат в списке чатов
+                const chatIndex = chatList.findIndex(chat => chat.id === data.chat_id);
+
+                if (chatIndex === -1) {
+                    // Если чата нет в списке, обновляем весь список через API
+                    logToConsole('Received message for a chat not in the list, refreshing chat list', 'info');
+                    ensureValidToken().then(() => fetchChats());
+                    return;
+                }
+
+                // Локально обновляем информацию в чате
+                const timestamp = data.meta && data.meta.created_at ? new Date(data.meta.created_at) : new Date();
+
+                // Обновляем данные чата
+                chatList[chatIndex].last_message = data.payload.text;
+                chatList[chatIndex].last_message_at = timestamp.toISOString();
+
+                // Если сообщение не от нас, помечаем как непрочитанное
+                if (!isSelfMessage) {
+                    chatList[chatIndex].read = false;
+                }
+
+                // Перерисовываем список чатов с обновленными данными
+                renderChatList();
+
                 if (isSelfMessage) {
                     logToConsole('Received confirmation of our own message', 'info');
                     // Не добавляем сообщение в UI, так как оно уже было добавлено оптимистично
@@ -659,13 +758,11 @@ function connectWebSocket() {
                     const messageElement = document.createElement('div');
                     messageElement.className = 'message received';
 
-                    const timestamp = data.meta && data.meta.created_at ?
-                        formatTimestamp(new Date(data.meta.created_at)) :
-                        formatTimestamp(new Date());
+                    const formattedTimestamp = formatTimestamp(timestamp);
 
                     messageElement.innerHTML = `
                 <div class="message-content">${data.payload.text}</div>
-                <div class="message-time">${timestamp}</div>
+                <div class="message-time">${formattedTimestamp}</div>
             `;
 
                     messagesContainer.appendChild(messageElement);
@@ -674,10 +771,8 @@ function connectWebSocket() {
                     // Mark the message as read since we're in the chat
                     window.pendingChatListUpdate = true; // Устанавливаем флаг ожидания обновления
                     markChatAsRead(data.chat_id);
-                } else {
-                    // Если чат не активен, просто обновляем список чатов
-                    ensureValidToken().then(() => fetchChats());
                 }
+                // Если чат не активен, мы уже обновили локальные данные выше, API вызывать не нужно
             }
         };
     } catch (error) {
