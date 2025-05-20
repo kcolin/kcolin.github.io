@@ -27,6 +27,139 @@ const chatWindow = document.getElementById('chat-window');
 const emptyState = document.getElementById('empty-state');
 const debugConsole = document.getElementById('debug-console');
 
+let toastTimeout = 5000; // Время показа тоста в миллисекундах
+let toasts = []; // Массив для отслеживания активных тостов
+
+// Функция для создания и отображения тоста
+function showToast(chat, message) {
+    const toastContainer = document.getElementById('toast-container');
+    if (!toastContainer) {
+        logToConsole('Toast container not found', 'error');
+        return;
+    }
+
+    // Получаем данные пользователя для аватара
+    const userData = userCache[chat.user_id] || {};
+
+    // Определяем заголовок и аватар для тоста
+    let chatTitle = "New message";
+    let avatarContent = "";
+    let avatarStyle = "";
+
+    if (chat.adv_title) {
+        chatTitle = chat.adv_title;
+    }
+
+    if (userData) {
+        // Создаем содержимое аватара
+        if (userData.avatar) {
+            avatarStyle = `background-image: url('${userData.avatar}')`;
+        } else if (userData.first_name) {
+            avatarContent = userData.first_name.charAt(0);
+        } else {
+            avatarContent = chat.chatType === 'renter' ? 'R' : 'O';
+        }
+
+        // Если нет заголовка объявления, используем имя пользователя
+        if (!chat.adv_title) {
+            if (userData.first_name && userData.last_name) {
+                chatTitle = `${userData.first_name} ${userData.last_name}`;
+            } else if (userData.first_name) {
+                chatTitle = userData.first_name;
+            } else if (userData.business_name) {
+                chatTitle = userData.business_name;
+            }
+        }
+    }
+
+    // Создаем элемент тоста
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.dataset.chatId = chat.id;
+
+    toast.innerHTML = `
+        <div class="toast-avatar" style="${avatarStyle}">${avatarContent}</div>
+        <div class="toast-content">
+            <div class="toast-title">${chatTitle}</div>
+            <div class="toast-message">${message}</div>
+        </div>
+        <button class="toast-close">&times;</button>
+    `;
+
+    // Добавляем обработчик для перехода к чату при клике на тост
+    toast.addEventListener('click', (e) => {
+        // Игнорируем клик по кнопке закрытия
+        if (e.target.className === 'toast-close') return;
+
+        // Находим чат по ID и открываем его
+        const chatToOpen = chatList.find(c => c.id === chat.id);
+        if (chatToOpen) {
+            selectChat(chatToOpen);
+            removeToast(toast); // Удаляем тост после перехода
+        }
+    });
+
+    // Добавляем обработчик для кнопки закрытия
+    const closeBtn = toast.querySelector('.toast-close');
+    closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // Предотвращаем всплытие события
+        removeToast(toast);
+    });
+
+    // Добавляем тост в контейнер
+    toastContainer.appendChild(toast);
+
+    // Добавляем тост в массив активных тостов
+    toasts.push(toast);
+
+    // Воспроизводим звук уведомления
+    playNotificationSound();
+
+    // Устанавливаем таймер для автоматического закрытия тоста
+    setTimeout(() => {
+        removeToast(toast);
+    }, toastTimeout);
+}
+
+// Функция для удаления тоста
+function removeToast(toast) {
+    // Проверяем, существует ли еще тост в DOM
+    if (!toast || !toast.parentNode) return;
+
+    // Добавляем анимацию исчезновения
+    toast.style.animation = 'fadeOut 0.3s forwards';
+
+    // Удаляем тост после завершения анимации
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.parentNode.removeChild(toast);
+        }
+
+        // Удаляем тост из массива активных тостов
+        const index = toasts.indexOf(toast);
+        if (index !== -1) {
+            toasts.splice(index, 1);
+        }
+    }, 300);
+}
+
+// Функция для воспроизведения звука уведомления
+function playNotificationSound() {
+    const sound = document.getElementById('notification-sound');
+    if (sound) {
+        // Перематываем звук в начало (если он уже проигрывался)
+        sound.currentTime = 0;
+
+        // Воспроизводим звук
+        sound.play().catch(error => {
+            // Обрабатываем ошибки воспроизведения (например, если браузер блокирует автовоспроизведение)
+            logToConsole(`Error playing notification sound: ${error.message}`, 'warning');
+        });
+    } else {
+        logToConsole('Notification sound element not found', 'warning');
+    }
+}
+
 // Initialize the application
 function init() {
     // Инициализируем глобальную переменную для отслеживания ожидающих обновлений списка чатов
@@ -724,55 +857,57 @@ function connectWebSocket() {
                 // Проверяем, является ли отправитель текущим пользователем
                 const isSelfMessage = data.payload.sender === currentUserId;
 
-                // Находим чат в списке чатов
-                const chatIndex = chatList.findIndex(chat => chat.id === data.chat_id);
-
-                if (chatIndex === -1) {
-                    // Если чата нет в списке, обновляем весь список через API
-                    logToConsole('Received message for a chat not in the list, refreshing chat list', 'info');
-                    ensureValidToken().then(() => fetchChats());
-                    return;
-                }
-
-                // Локально обновляем информацию в чате
-                const timestamp = data.meta && data.meta.created_at ? new Date(data.meta.created_at) : new Date();
-
-                // Обновляем данные чата
-                chatList[chatIndex].last_message = data.payload.text;
-                chatList[chatIndex].last_message_at = timestamp.toISOString();
-
-                // Если сообщение не от нас, помечаем как непрочитанное
-                if (!isSelfMessage) {
-                    chatList[chatIndex].read = false;
-                }
-
-                // Перерисовываем список чатов с обновленными данными
-                renderChatList();
-
                 if (isSelfMessage) {
                     logToConsole('Received confirmation of our own message', 'info');
-                    // Не добавляем сообщение в UI, так как оно уже было добавлено оптимистично
-                } else if (activeChat && data.chat_id === activeChat.id) {
-                    // Update the messages display if this is for the active chat and NOT from ourselves
-                    const messagesContainer = document.getElementById('chat-messages');
-                    const messageElement = document.createElement('div');
-                    messageElement.className = 'message received';
+                    // Не добавляем сообщение в UI и не показываем тост, так как это наше собственное сообщение
+                } else {
+                    // Находим чат в списке чатов
+                    const chatIndex = chatList.findIndex(chat => chat.id === data.chat_id);
 
-                    const formattedTimestamp = formatTimestamp(timestamp);
+                    if (chatIndex === -1) {
+                        // Если чата нет в списке, обновляем весь список через API
+                        logToConsole('Received message for a chat not in the list, refreshing chat list', 'info');
+                        ensureValidToken().then(() => fetchChats());
+                        return;
+                    }
 
-                    messageElement.innerHTML = `
-                <div class="message-content">${data.payload.text}</div>
-                <div class="message-time">${formattedTimestamp}</div>
-            `;
+                    // Локально обновляем информацию в чате
+                    const timestamp = data.meta && data.meta.created_at ? new Date(data.meta.created_at) : new Date();
 
-                    messagesContainer.appendChild(messageElement);
-                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                    // Обновляем данные чата
+                    chatList[chatIndex].last_message = data.payload.text;
+                    chatList[chatIndex].last_message_at = timestamp.toISOString();
 
-                    // Mark the message as read since we're in the chat
-                    window.pendingChatListUpdate = true; // Устанавливаем флаг ожидания обновления
-                    markChatAsRead(data.chat_id);
+                    // Если сообщение не от нас, помечаем как непрочитанное
+                    chatList[chatIndex].read = false;
+
+                    // Перерисовываем список чатов с обновленными данными
+                    renderChatList();
+
+                    if (activeChat && data.chat_id === activeChat.id) {
+                        // Если чат активен, добавляем сообщение в UI
+                        const messagesContainer = document.getElementById('chat-messages');
+                        const messageElement = document.createElement('div');
+                        messageElement.className = 'message received';
+
+                        const formattedTimestamp = formatTimestamp(timestamp);
+
+                        messageElement.innerHTML = `
+                    <div class="message-content">${data.payload.text}</div>
+                    <div class="message-time">${formattedTimestamp}</div>
+                `;
+
+                        messagesContainer.appendChild(messageElement);
+                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+                        // Mark the message as read since we're in the chat
+                        window.pendingChatListUpdate = true; // Устанавливаем флаг ожидания обновления
+                        markChatAsRead(data.chat_id);
+                    } else {
+                        // Если чат не активен, показываем тост с уведомлением
+                        showToast(chatList[chatIndex], data.payload.text);
+                    }
                 }
-                // Если чат не активен, мы уже обновили локальные данные выше, API вызывать не нужно
             }
         };
     } catch (error) {
