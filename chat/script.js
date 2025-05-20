@@ -491,6 +491,11 @@ function renderMessages(messages) {
         logToConsole('Could not parse JWT token for user ID', 'warning');
     }
 
+    // Sort messages by created_at timestamp in ascending order (oldest first)
+    messages.sort((a, b) => {
+        return new Date(a.created_at) - new Date(b.created_at);
+    });
+
     messages.forEach(message => {
         const messageElement = document.createElement('div');
         const isSent = message.sender_id === currentUserId;
@@ -625,7 +630,7 @@ function connectWebSocket() {
                 if (activeChat) {
                     fetchChats();
                 }
-            } else if (data.type === 'recvMessage') {
+            } else if (data.type === 'recvMsg' || data.type === 'recvMessage') { // Поддержка обоих типов сообщений
                 if (activeChat && data.chat_id === activeChat.id) {
                     // Update the messages display if this is for the active chat
                     const messagesContainer = document.getElementById('chat-messages');
