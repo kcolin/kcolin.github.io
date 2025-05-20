@@ -479,7 +479,7 @@ function renderChatList() {
                 </div>
                 <div class="chat-last-message">${lastMessage}</div>
             </div>
-            ${!chat.read ? '<div class="unread-indicator"></div>' : ''}
+            ${chat.read ? '' : '<div class="unread-indicator"></div>'}
         `;
 
         chatItem.addEventListener('click', () => {
