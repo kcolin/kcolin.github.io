@@ -636,8 +636,25 @@ function connectWebSocket() {
                 }
                 window.pendingChatListUpdate = false;
             } else if (data.type === 'recvMsg' || data.type === 'recvMessage') { // Поддержка обоих типов сообщений
-                if (activeChat && data.chat_id === activeChat.id) {
-                    // Update the messages display if this is for the active chat
+                // Get the JWT payload to identify the current user
+                let currentUserId = '';
+                try {
+                    const base64Url = authToken.split('.')[1];
+                    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                    const payload = JSON.parse(atob(base64));
+                    currentUserId = payload.sub || '';
+                } catch (e) {
+                    logToConsole('Could not parse JWT token for user ID', 'warning');
+                }
+
+                // Проверяем, является ли отправитель текущим пользователем
+                const isSelfMessage = data.payload.sender === currentUserId;
+
+                if (isSelfMessage) {
+                    logToConsole('Received confirmation of our own message', 'info');
+                    // Не добавляем сообщение в UI, так как оно уже было добавлено оптимистично
+                } else if (activeChat && data.chat_id === activeChat.id) {
+                    // Update the messages display if this is for the active chat and NOT from ourselves
                     const messagesContainer = document.getElementById('chat-messages');
                     const messageElement = document.createElement('div');
                     messageElement.className = 'message received';
@@ -647,9 +664,9 @@ function connectWebSocket() {
                         formatTimestamp(new Date());
 
                     messageElement.innerHTML = `
-                        <div class="message-content">${data.payload.text}</div>
-                        <div class="message-time">${timestamp}</div>
-                    `;
+                <div class="message-content">${data.payload.text}</div>
+                <div class="message-time">${timestamp}</div>
+            `;
 
                     messagesContainer.appendChild(messageElement);
                     messagesContainer.scrollTop = messagesContainer.scrollHeight;
