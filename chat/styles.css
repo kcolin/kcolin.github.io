@@ -112,7 +112,6 @@ button:hover {
     border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
-    overflow: hidden;
 }
 
 .chat-list-header {
@@ -191,6 +190,7 @@ button:hover {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 300px;
 }
 
 .chat-time {
@@ -258,7 +258,7 @@ button:hover {
 }
 
 .message {
-    max-width: 70%;
+    max-width: 500px;
     padding: 10px 15px;
     border-radius: 18px;
     margin-bottom: 10px;
