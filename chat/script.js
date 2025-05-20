@@ -29,6 +29,9 @@ const debugConsole = document.getElementById('debug-console');
 
 // Initialize the application
 function init() {
+    // Инициализируем глобальную переменную для отслеживания ожидающих обновлений списка чатов
+    window.pendingChatListUpdate = false;
+
     loadConfig();
     bindEventListeners();
     applyConfig();
@@ -627,9 +630,11 @@ function connectWebSocket() {
             } else if (data.type === 'readed') {
                 logToConsole('Message read confirmation received', 'info');
                 // Update chat list to reflect read status
-                if (activeChat) {
+                // Обновляем список чатов только если не ожидаем обновления от получения сообщения
+                if (!window.pendingChatListUpdate) {
                     fetchChats();
                 }
+                window.pendingChatListUpdate = false;
             } else if (data.type === 'recvMsg' || data.type === 'recvMessage') { // Поддержка обоих типов сообщений
                 if (activeChat && data.chat_id === activeChat.id) {
                     // Update the messages display if this is for the active chat
@@ -650,25 +655,26 @@ function connectWebSocket() {
                     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
                     // Mark the message as read since we're in the chat
+                    window.pendingChatListUpdate = true; // Устанавливаем флаг ожидания обновления
                     markChatAsRead(data.chat_id);
+                } else {
+                    // Если чат не активен, просто обновляем список чатов
+                    ensureValidToken().then(() => fetchChats());
                 }
-
-                // Refresh the chat list to show updated last message
-                ensureValidToken().then(() => fetchChats());
             }
-        };
-
-        wsConnection.onclose = () => {
-            logToConsole('WebSocket connection closed', 'warning');
-            clearInterval(pingInterval);
-        };
-
-        wsConnection.onerror = (error) => {
-            logToConsole(`WebSocket error: ${error}`, 'error');
         };
     } catch (error) {
         logToConsole(`Failed to connect to WebSocket: ${error.message}`, 'error');
     }
+
+    wsConnection.onclose = () => {
+        logToConsole('WebSocket connection closed', 'warning');
+        clearInterval(pingInterval);
+    };
+
+    wsConnection.onerror = (error) => {
+        logToConsole(`WebSocket error: ${error}`, 'error');
+    };
 }
 
 // Helper function to format timestamps
