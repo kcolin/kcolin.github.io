@@ -460,3 +460,23 @@ button:hover {
         opacity: 0;
     }
 }
+
+
+.load-more-indicator {
+    text-align: center;
+    padding: 10px;
+}
+
+.spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+    border-top-color: var(--primary-color);
+    animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}

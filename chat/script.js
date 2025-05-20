@@ -26,6 +26,10 @@ const chatListContainer = document.getElementById('chat-list-container');
 const chatWindow = document.getElementById('chat-window');
 const emptyState = document.getElementById('empty-state');
 const debugConsole = document.getElementById('debug-console');
+let isLoadingMessages = false; // Флаг, указывающий, загружаются ли сообщения в данный момент
+let noMoreMessages = false; // Флаг, указывающий, что старых сообщений больше нет
+let messagesPageSize = 20; // Количество сообщений на страницу
+let oldestMessageId = null; // ID самого старого загруженного сообщения (для pivot_id)
 
 let toastTimeout = 5000; // Время показа тоста в миллисекундах
 let toasts = []; // Массив для отслеживания активных тостов
@@ -492,11 +496,19 @@ function selectChat(chat) {
     renderChatList(); // Update active state in the list
     renderChatWindow(chat);
 
+    // Сбрасываем флаги и переменные для новой загрузки сообщений
+    isLoadingMessages = false;
+    noMoreMessages = false;
+    oldestMessageId = null;
+
     // Сначала отмечаем чат как прочитанный
     markChatAsRead(chat.id);
 
     // Затем загружаем сообщения
     fetchMessages(chat.id);
+
+    // Устанавливаем слушатель прокрутки после загрузки сообщений
+    setTimeout(setupScrollListener, 500);
 }
 
 // Mark chat messages as read
@@ -628,10 +640,29 @@ function renderChatWindow(chat) {
 }
 
 // Fetch messages for the active chat
-function fetchMessages(chatId) {
-    logToConsole(`Fetching messages for chat: ${chatId}...`, 'info');
+function fetchMessages(chatId, pivotId = null) {
+    // Если загрузка уже идет, не начинаем новую
+    if (isLoadingMessages) {
+        return;
+    }
 
-    fetch(`${config.apiDomain}/messages/${chatId}`, {
+    isLoadingMessages = true;
+
+    // Если это первая загрузка, сбрасываем флаг noMoreMessages
+    if (!pivotId) {
+        noMoreMessages = false;
+        oldestMessageId = null;
+    }
+
+    logToConsole(`Fetching messages for chat: ${chatId}${pivotId ? `, pivot_id: ${pivotId}` : ''}...`, 'info');
+
+    // Формируем URL с учетом pivot_id
+    let url = `${config.apiDomain}/messages/${chatId}?size=${messagesPageSize}`;
+    if (pivotId) {
+        url += `&pivot_id=${pivotId}`;
+    }
+
+    fetch(url, {
         method: 'GET',
         headers: {
             'Authorization': `Bearer ${authToken}`
@@ -645,29 +676,70 @@ function fetchMessages(chatId) {
         })
         .then(data => {
             if (data.items && Array.isArray(data.items)) {
-                renderMessages(data.items);
-                logToConsole(`Fetched ${data.items.length} messages`, 'success');
+                // Если вернулось меньше сообщений, чем запрошено, значит больше нет
+                if (data.items.length < messagesPageSize) {
+                    noMoreMessages = true;
+                    logToConsole('No more older messages available', 'info');
+                }
+
+                // Если вообще нет сообщений, сразу устанавливаем флаг
+                if (data.items.length === 0) {
+                    noMoreMessages = true;
+                    logToConsole('No messages found', 'info');
+                    renderMessages([], !pivotId);
+                } else {
+                    // Сохраняем ID самого старого сообщения для следующей загрузки
+                    if (data.items.length > 0) {
+                        // Сортируем сообщения по created_at (самое старое - в начале)
+                        data.items.sort((a, b) => {
+                            return new Date(a.created_at) - new Date(b.created_at);
+                        });
+
+                        oldestMessageId = data.items[0].id;
+                    }
+
+                    renderMessages(data.items, !pivotId);
+                    logToConsole(`Fetched ${data.items.length} messages`, 'success');
+                }
             } else {
                 logToConsole('No messages found or invalid response format', 'info');
-                renderMessages([]);
+                renderMessages([], !pivotId);
+                noMoreMessages = true;
             }
         })
         .catch(error => {
             logToConsole(`Error fetching messages: ${error.message}`, 'error');
+        })
+        .finally(() => {
+            isLoadingMessages = false;
         });
 }
 
 // Render messages in the chat window
-function renderMessages(messages) {
+function renderMessages(messages, clearContainer = true) {
     const messagesContainer = document.getElementById('chat-messages');
-    messagesContainer.innerHTML = '';
 
-    if (messages.length === 0) {
+    // Сохраняем текущую позицию прокрутки и высоту контента перед добавлением новых сообщений
+    const scrollTop = messagesContainer.scrollTop;
+    const scrollHeight = messagesContainer.scrollHeight;
+
+    // Если это первая загрузка, очищаем контейнер
+    if (clearContainer) {
+        messagesContainer.innerHTML = '';
+    }
+
+    // Если нет сообщений и контейнер пуст, показываем состояние "нет сообщений"
+    if (messages.length === 0 && (clearContainer || messagesContainer.childNodes.length === 0)) {
         const emptyMessage = document.createElement('div');
         emptyMessage.className = 'empty-state';
         emptyMessage.style.padding = '20px';
         emptyMessage.innerHTML = '<p>No messages yet</p>';
         messagesContainer.appendChild(emptyMessage);
+        return;
+    }
+
+    // Если это не первая загрузка и нет новых сообщений, просто выходим
+    if (!clearContainer && messages.length === 0) {
         return;
     }
 
@@ -687,10 +759,14 @@ function renderMessages(messages) {
         return new Date(a.created_at) - new Date(b.created_at);
     });
 
+    // Создаем фрагмент для добавления всех сообщений за один раз (оптимизация производительности)
+    const fragment = document.createDocumentFragment();
+
     messages.forEach(message => {
         const messageElement = document.createElement('div');
         const isSent = message.sender_id === currentUserId;
         messageElement.className = `message ${isSent ? 'sent' : 'received'}`;
+        messageElement.dataset.messageId = message.id; // Добавляем id сообщения как атрибут для последующего использования
 
         const timestamp = formatTimestamp(new Date(message.created_at));
 
@@ -699,11 +775,62 @@ function renderMessages(messages) {
             <div class="message-time">${timestamp}</div>
         `;
 
-        messagesContainer.appendChild(messageElement);
+        fragment.appendChild(messageElement);
     });
 
-    // Scroll to the bottom
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    // Добавляем все сообщения в контейнер
+    if (clearContainer) {
+        // Для первой загрузки просто добавляем все сообщения
+        messagesContainer.appendChild(fragment);
+        // И прокручиваем в конец
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    } else {
+        // Для подгрузки старых сообщений вставляем их в начало
+        // Сначала вставляем новые сообщения
+        messagesContainer.insertBefore(fragment, messagesContainer.firstChild);
+
+        // Затем восстанавливаем позицию прокрутки, учитывая высоту новых сообщений
+        const newScrollHeight = messagesContainer.scrollHeight;
+        messagesContainer.scrollTop = scrollTop + (newScrollHeight - scrollHeight);
+    }
+
+    // Добавляем индикатор загрузки, если его еще нет и есть еще сообщения
+    if (!noMoreMessages && !document.getElementById('load-more-indicator')) {
+        const loadMoreIndicator = document.createElement('div');
+        loadMoreIndicator.id = 'load-more-indicator';
+        loadMoreIndicator.className = 'load-more-indicator';
+        loadMoreIndicator.innerHTML = '<div class="spinner"></div>';
+        messagesContainer.insertBefore(loadMoreIndicator, messagesContainer.firstChild);
+    } else if (noMoreMessages) {
+        // Если сообщений больше нет, удаляем индикатор, если он есть
+        const loadMoreIndicator = document.getElementById('load-more-indicator');
+        if (loadMoreIndicator) {
+            loadMoreIndicator.remove();
+        }
+    }
+}
+
+function setupScrollListener() {
+    const messagesContainer = document.getElementById('chat-messages');
+
+    // Удаляем предыдущий слушатель, если он существует
+    messagesContainer.removeEventListener('scroll', handleScroll);
+
+    // Добавляем новый слушатель
+    messagesContainer.addEventListener('scroll', handleScroll);
+}
+
+function handleScroll() {
+    const messagesContainer = document.getElementById('chat-messages');
+
+    // Если прокручено почти до верха и не загружаются сообщения сейчас и есть еще сообщения
+    if (messagesContainer.scrollTop < 50 && !isLoadingMessages && !noMoreMessages && activeChat) {
+        // Загружаем предыдущие сообщения, используя ID самого старого сообщения как pivot_id
+        if (oldestMessageId) {
+            logToConsole(`Loading more messages before message #${oldestMessageId}`, 'info');
+            fetchMessages(activeChat.id, oldestMessageId);
+        }
+    }
 }
 
 // Send a message in the active chat
