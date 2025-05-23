@@ -801,22 +801,6 @@ function sendMessage() {
                 chatList[chatIndex].last_message_time = now.toISOString();
                 chatList[chatIndex].read = true;
             }
-
-            renderChatList();
-
-            const messagesContainer = document.getElementById('chat-messages');
-            const messageElement = document.createElement('div');
-            messageElement.className = 'message sent';
-
-            const timestamp = formatTimestamp(now);
-
-            messageElement.innerHTML = `
-                <div class="message-content">${messageText}</div>
-                <div class="message-time">${timestamp}</div>
-            `;
-
-            messagesContainer.appendChild(messageElement);
-            messagesContainer.scrollTop = messagesContainer.scrollHeight;
         })
         .catch(error => {
             logToConsole(`Error refreshing token before sending message: ${error.message}`, 'error');
