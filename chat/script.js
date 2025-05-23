@@ -875,6 +875,7 @@ function connectWebSocket() {
             if (data.type === 'pong') {
                 logToConsole('Pong received', 'info');
             } else if (data.type === 'message') {
+                // Получаем текущий ID пользователя для определения направления сообщения
                 let currentUserId = '';
                 try {
                     const base64Url = authToken.split('.')[1];
@@ -886,32 +887,46 @@ function connectWebSocket() {
                 }
 
                 const messageData = data.event_data.message;
+                const chatId = data.event_data.chat_id;
                 const isSelfMessage = messageData.sender_id === currentUserId;
 
+                logToConsole(`Received message from ${isSelfMessage ? 'self' : 'other'}: ${messageData.content}`, 'info');
+
+                // Находим чат в списке
+                const chatIndex = chatList.findIndex(chat => chat.id == chatId); // Используем == для сравнения string и number
+
+                if (chatIndex === -1) {
+                    logToConsole('Received message for a chat not in the list, refreshing chat list', 'info');
+                    ensureValidToken().then(() => fetchChats());
+                    return;
+                }
+
+                // Обновляем данные чата в списке
+                const timestamp = new Date(messageData.created_at);
+                chatList[chatIndex].last_message_text = messageData.content;
+                chatList[chatIndex].last_message_time = timestamp.toISOString();
+
+                // Если сообщение от нас, то оно считается прочитанным
+                // Если от собеседника и чат не активен, то непрочитанным
                 if (isSelfMessage) {
-                    logToConsole('Received confirmation of our own message', 'info');
-                } else {
-                    const chatIndex = chatList.findIndex(chat => chat.id === data.event_data.chat_id);
-
-                    if (chatIndex === -1) {
-                        logToConsole('Received message for a chat not in the list, refreshing chat list', 'info');
-                        ensureValidToken().then(() => fetchChats());
-                        return;
-                    }
-
-                    const timestamp = new Date(messageData.created_at);
-
-                    // Обновляем чат в списке с правильными полями
-                    chatList[chatIndex].last_message_text = messageData.content;
-                    chatList[chatIndex].last_message_time = timestamp.toISOString();
+                    chatList[chatIndex].read = true;
+                } else if (!activeChat || activeChat.id != chatId) {
                     chatList[chatIndex].read = false;
+                } else {
+                    // Если чат активен и сообщение от собеседника, сразу помечаем как прочитанное
+                    chatList[chatIndex].read = true;
+                }
 
-                    renderChatList();
+                // Перерисовываем список чатов
+                renderChatList();
 
-                    if (activeChat && data.event_data.chat_id === activeChat.id) {
-                        const messagesContainer = document.getElementById('chat-messages');
+                // Если чат активен, добавляем сообщение в UI
+                if (activeChat && activeChat.id == chatId) {
+                    const messagesContainer = document.getElementById('chat-messages');
+                    if (messagesContainer) {
                         const messageElement = document.createElement('div');
-                        messageElement.className = 'message received';
+                        messageElement.className = `message ${isSelfMessage ? 'sent' : 'received'}`;
+                        messageElement.dataset.messageId = messageData.id;
 
                         const formattedTimestamp = formatTimestamp(timestamp);
 
@@ -923,11 +938,22 @@ function connectWebSocket() {
                         messagesContainer.appendChild(messageElement);
                         messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
-                        window.pendingChatListUpdate = true;
-                        markChatAsRead(data.event_data.chat_id);
-                    } else {
-                        showToast(chatList[chatIndex], messageData.content);
+                        // Если сообщение от собеседника и чат активен, отмечаем как прочитанное
+                        if (!isSelfMessage) {
+                            window.pendingChatListUpdate = true;
+                            markChatAsRead(chatId);
+                        }
                     }
+                } else if (!isSelfMessage) {
+                    // Если чат не активен и сообщение от собеседника, показываем тост
+                    showToast(chatList[chatIndex], messageData.content);
+                }
+
+                // Обновляем активный чат если он совпадает
+                if (activeChat && activeChat.id == chatId) {
+                    activeChat.last_message_text = messageData.content;
+                    activeChat.last_message_time = timestamp.toISOString();
+                    activeChat.read = isSelfMessage || true; // Наши сообщения или активный чат всегда прочитан
                 }
             } else if (data.type === 'read') {
                 logToConsole('Message read confirmation received', 'info');
