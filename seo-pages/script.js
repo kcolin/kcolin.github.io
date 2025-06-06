@@ -5,6 +5,7 @@ let totalPages = 1;
 let apiBaseUrl = '';
 let accessToken = '';
 let deletePageId = null;
+const API_URL_KEY = 'admin_api_url'; // Key for localStorage
 
 // DOM elements
 const apiUrlInput = document.getElementById('api-url');
@@ -50,6 +51,12 @@ confirmDeleteBtn.addEventListener('click', confirmDelete);
 
 // Initialize the application
 function init() {
+    // Load the API URL from localStorage if available
+    const savedApiUrl = localStorage.getItem(API_URL_KEY);
+    if (savedApiUrl) {
+        apiUrlInput.value = savedApiUrl;
+    }
+
     apiBaseUrl = apiUrlInput.value;
     refreshToken()
         .then(() => {
@@ -63,6 +70,10 @@ function init() {
 // Update API URL when changed
 function updateApiUrl() {
     apiBaseUrl = apiUrlInput.value;
+
+    // Save the API URL to localStorage
+    localStorage.setItem(API_URL_KEY, apiBaseUrl);
+
     refreshToken()
         .then(() => {
             loadSeoPages(currentPage);
