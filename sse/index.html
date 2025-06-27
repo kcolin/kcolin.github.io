@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EventSource Connection Example</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        h1, h2 {
+            color: #333;
+        }
+
+        .config-section {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #555;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        textarea {
+            font-family: monospace;
+            min-height: 80px;
+        }
+
+        button {
+            background-color: #4F46E5;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+
+        button:hover {
+            background-color: #4338CA;
+        }
+
+        button:disabled {
+            background-color: #9CA3AF;
+            cursor: not-allowed;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            background-color: #f3f4f6;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+
+        .status-indicator.connected {
+            background-color: #10B981;
+        }
+
+        .status-indicator.connecting {
+            background-color: #F59E0B;
+            animation: pulse 1.5s infinite;
+        }
+
+        .status-indicator.disconnected {
+            background-color: #EF4444;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .events-container {
+            max-height: 400px;
+            overflow-y: auto;
+            background-color: #1F2937;
+            color: #E5E7EB;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+
+        .event-item {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #374151;
+        }
+
+        .event-item:last-child {
+            border-bottom: none;
+        }
+
+        .event-type {
+            color: #60A5FA;
+            font-weight: bold;
+        }
+
+        .event-time {
+            color: #9CA3AF;
+            font-size: 12px;
+        }
+
+        .event-data {
+            margin-top: 5px;
+            color: #D1D5DB;
+        }
+
+        .notification {
+            background-color: #F3F4F6;
+            border-left: 4px solid #4F46E5;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .notification-content {
+            flex: 1;
+        }
+
+        .notification-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .notification-message {
+            color: #6B7280;
+        }
+
+        .notification-time {
+            color: #9CA3AF;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+
+        .notification-action {
+            background-color: #4F46E5;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .code-example {
+            background-color: #1F2937;
+            color: #E5E7EB;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-family: monospace;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+
+        .tab-container {
+            margin-top: 20px;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #E5E7EB;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.3s;
+        }
+
+        .tab:hover {
+            background-color: #F9FAFB;
+        }
+
+        .tab.active {
+            border-bottom-color: #4F46E5;
+            color: #4F46E5;
+            font-weight: 500;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 20px 0;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .error-message {
+            background-color: #FEE2E2;
+            color: #991B1B;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+
+        .success-message {
+            background-color: #D1FAE5;
+            color: #065F46;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+<h1>🔄 EventSource Connection Example</h1>
+
+<div class="container">
+    <h2>Конфигурация подключения</h2>
+
+    <div class="config-section">
+        <div class="form-group">
+            <label for="baseUrl">Base URL:</label>
+            <input type="text" id="baseUrl" value="http://localhost:8080" placeholder="http://localhost:8080">
+        </div>
+
+        <div class="form-group">
+            <label for="jwtToken">JWT Token:</label>
+            <textarea id="jwtToken" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Метод аутентификации:</label>
+            <div>
+                <label style="display: inline-block; margin-right: 20px;">
+                    <input type="radio" name="authMethod" value="query" checked> Query параметр
+                </label>
+                <label style="display: inline-block;">
+                    <input type="radio" name="authMethod" value="polyfill"> Polyfill с заголовками
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <div class="status">
+        <div class="status-indicator disconnected" id="statusIndicator"></div>
+        <span id="statusText">Отключено</span>
+    </div>
+
+    <button id="connectBtn" onclick="connect()">Подключиться</button>
+    <button id="disconnectBtn" onclick="disconnect()" disabled>Отключиться</button>
+    <button onclick="clearEvents()">Очистить события</button>
+</div>
+
+<div class="container">
+    <h2>Примеры кода</h2>
+
+    <div class="tab-container">
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('simple')">Простой пример</div>
+            <div class="tab" onclick="showTab('advanced')">Продвинутый пример</div>
+            <div class="tab" onclick="showTab('react')">React Hook</div>
+        </div>
+
+        <div id="simple" class="tab-content active">
+            <h3>Базовое подключение</h3>
+            <div class="code-example">// Простое подключение через query параметр
+                const eventSource = new EventSource(`${baseUrl}/client-notify/sse/subscribe?token=${token}`);
+
+                eventSource.onopen = () => {
+                console.log('Connected to SSE');
+                };
+
+                eventSource.addEventListener('notification', (event) => {
+                const data = JSON.parse(event.data);
+                console.log('Notification:', data);
+                });
+
+                eventSource.onerror = (error) => {
+                console.error('SSE Error:', error);
+                };</div>
+        </div>
+
+        <div id="advanced" class="tab-content">
+            <h3>Класс для управления SSE подключением</h3>
+            <div class="code-example">class SSEConnection {
+                constructor(config) {
+                this.baseUrl = config.baseUrl;
+                this.token = config.token;
+                this.authMethod = config.authMethod || 'query';
+                this.reconnectDelay = config.reconnectDelay || 5000;
+                this.maxReconnectAttempts = config.maxReconnectAttempts || 10;
+
+                this.eventSource = null;
+                this.reconnectAttempts = 0;
+                this.reconnectTimeout = null;
+                this.listeners = new Map();
+                }
+
+                connect() {
+                if (this.eventSource) {
+                this.disconnect();
+                }
+
+                const url = this.buildUrl();
+
+                try {
+                if (this.authMethod === 'polyfill' && window.EventSourcePolyfill) {
+                this.eventSource = new EventSourcePolyfill(url, {
+                headers: {
+                'Authorization': `Bearer ${this.token}`
+                }
+                });
+                } else {
+                // Fallback to query parameter
+                const urlWithToken = `${url}?token=${encodeURIComponent(this.token)}`;
+                this.eventSource = new EventSource(urlWithToken);
+                }
+
+                this.setupEventHandlers();
+                } catch (error) {
+                this.handleError(error);
+                }
+                }
+
+                setupEventHandlers() {
+                this.eventSource.onopen = () => {
+                console.log('SSE Connected');
+                this.reconnectAttempts = 0;
+                this.emit('connected');
+                };
+
+                this.eventSource.addEventListener('notification', (event) => {
+                try {
+                const data = JSON.parse(event.data);
+                this.emit('notification', data);
+                } catch (error) {
+                console.error('Error parsing notification:', error);
+                }
+                });
+
+                this.eventSource.addEventListener('ping', () => {
+                this.emit('ping');
+                });
+
+                this.eventSource.onerror = (error) => {
+                this.handleError(error);
+                };
+                }
+
+                handleError(error) {
+                console.error('SSE Error:', error);
+                this.emit('error', error);
+
+                if (this.eventSource?.readyState === EventSource.CLOSED) {
+                this.emit('disconnected');
+                this.attemptReconnect();
+                }
+                }
+
+                attemptReconnect() {
+                if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+                console.error('Max reconnection attempts reached');
+                this.emit('reconnectFailed');
+                return;
+                }
+
+                this.reconnectAttempts++;
+                const delay = this.reconnectDelay * Math.min(this.reconnectAttempts, 5);
+
+                console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
+
+                this.reconnectTimeout = setTimeout(() => {
+                this.connect();
+                }, delay);
+                }
+
+                disconnect() {
+                if (this.reconnectTimeout) {
+                clearTimeout(this.reconnectTimeout);
+                this.reconnectTimeout = null;
+                }
+
+                if (this.eventSource) {
+                this.eventSource.close();
+                this.eventSource = null;
+                }
+
+                this.emit('disconnected');
+                }
+
+                on(event, callback) {
+                if (!this.listeners.has(event)) {
+                this.listeners.set(event, []);
+                }
+                this.listeners.get(event).push(callback);
+                }
+
+                off(event, callback) {
+                const callbacks = this.listeners.get(event);
+                if (callbacks) {
+                const index = callbacks.indexOf(callback);
+                if (index > -1) {
+                callbacks.splice(index, 1);
+                }
+                }
+                }
+
+                emit(event, data) {
+                const callbacks = this.listeners.get(event);
+                if (callbacks) {
+                callbacks.forEach(callback => callback(data));
+                }
+                }
+
+                buildUrl() {
+                return `${this.baseUrl}/client-notify/sse/subscribe`;
+                }
+                }
+
+                // Использование
+                const sse = new SSEConnection({
+                baseUrl: 'http://localhost:8080',
+                token: 'your-jwt-token',
+                authMethod: 'query',
+                reconnectDelay: 5000,
+                maxReconnectAttempts: 10
+                });
+
+                sse.on('connected', () => {
+                console.log('Connected!');
+                });
+
+                sse.on('notification', (data) => {
+                console.log('New notification:', data);
+                showNotification(data);
+                });
+
+                sse.on('error', (error) => {
+                console.error('Connection error:', error);
+                });
+
+                sse.connect();</div>
+        </div>
+
+        <div id="react" class="tab-content">
+            <h3>React Hook для SSE</h3>
+            <div class="code-example">import { useEffect, useState, useRef, useCallback } from 'react';
+
+                function useSSE(config) {
+                const [isConnected, setIsConnected] = useState(false);
+                const [lastError, setLastError] = useState(null);
+                const [notifications, setNotifications] = useState([]);
+
+                const eventSourceRef = useRef(null);
+                const reconnectTimeoutRef = useRef(null);
+                const reconnectAttemptsRef = useRef(0);
+
+                const connect = useCallback(() => {
+                // Cleanup existing connection
+                if (eventSourceRef.current) {
+                eventSourceRef.current.close();
+                }
+
+                const { baseUrl, token, authMethod = 'query' } = config;
+
+                try {
+                let eventSource;
+
+                if (authMethod === 'polyfill' && window.EventSourcePolyfill) {
+                eventSource = new EventSourcePolyfill(
+                `${baseUrl}/client-notify/sse/subscribe`,
+                {
+                headers: {
+                'Authorization': `Bearer ${token}`
+                }
+                }
+                );
+                } else {
+                const url = `${baseUrl}/client-notify/sse/subscribe?token=${encodeURIComponent(token)}`;
+                eventSource = new EventSource(url);
+                }
+
+                eventSource.onopen = () => {
+                setIsConnected(true);
+                setLastError(null);
+                reconnectAttemptsRef.current = 0;
+                };
+
+                eventSource.addEventListener('notification', (event) => {
+                try {
+                const data = JSON.parse(event.data);
+                setNotifications(prev => [data, ...prev]);
+
+                // Trigger browser notification if permitted
+                if (Notification.permission === 'granted') {
+                new Notification(data.title || 'Новое уведомление', {
+                body: data.message,
+                icon: '/icon.png'
+                });
+                }
+                } catch (error) {
+                console.error('Error parsing notification:', error);
+                }
+                });
+
+                eventSource.onerror = (error) => {
+                setIsConnected(false);
+                setLastError(error);
+
+                if (eventSource.readyState === EventSource.CLOSED) {
+                // Attempt reconnection with exponential backoff
+                const attempts = reconnectAttemptsRef.current;
+                if (attempts < 10) {
+                const delay = Math.min(1000 * Math.pow(2, attempts), 30000);
+                reconnectTimeoutRef.current = setTimeout(() => {
+                reconnectAttemptsRef.current++;
+                connect();
+                }, delay);
+                }
+                }
+                };
+
+                eventSourceRef.current = eventSource;
+                } catch (error) {
+                setLastError(error);
+                setIsConnected(false);
+                }
+                }, [config]);
+
+                const disconnect = useCallback(() => {
+                if (reconnectTimeoutRef.current) {
+                clearTimeout(reconnectTimeoutRef.current);
+                }
+
+                if (eventSourceRef.current) {
+                eventSourceRef.current.close();
+                eventSourceRef.current = null;
+                }
+
+                setIsConnected(false);
+                }, []);
+
+                const markAsRead = useCallback((notificationId) => {
+                setNotifications(prev =>
+                prev.map(n =>
+                n.id === notificationId ? { ...n, is_read: true } : n
+                )
+                );
+                }, []);
+
+                const clearNotifications = useCallback(() => {
+                setNotifications([]);
+                }, []);
+
+                useEffect(() => {
+                connect();
+
+                return () => {
+                disconnect();
+                };
+                }, [connect, disconnect]);
+
+                return {
+                isConnected,
+                notifications,
+                lastError,
+                markAsRead,
+                clearNotifications,
+                reconnect: connect,
+                disconnect
+                };
+                }
+
+                // Использование в компоненте
+                function NotificationCenter() {
+                const {
+                isConnected,
+                notifications,
+                markAsRead,
+                clearNotifications
+                } = useSSE({
+                baseUrl: 'http://localhost:8080',
+                token: localStorage.getItem('jwt_token'),
+                authMethod: 'query'
+                });
+
+                return (
+                &lt;div className="notification-center"&gt;
+                &lt;div className="header"&gt;
+                &lt;h3&gt;Уведомления&lt;/h3&gt;
+                &lt;span className={`status ${isConnected ? 'connected' : 'disconnected'}`}&gt;
+                {isConnected ? '● Подключено' : '● Отключено'}
+                &lt;/span&gt;
+                &lt;/div&gt;
+
+                {notifications.length === 0 ? (
+                &lt;p&gt;Нет новых уведомлений&lt;/p&gt;
+                ) : (
+                &lt;div className="notification-list"&gt;
+                {notifications.map(notification =&gt; (
+                &lt;div
+                key={notification.id}
+                className={`notification ${!notification.is_read ? 'unread' : ''}`}
+                onClick={() =&gt; markAsRead(notification.id)}
+                &gt;
+                &lt;h4&gt;{notification.title}&lt;/h4&gt;
+                &lt;p&gt;{notification.message}&lt;/p&gt;
+                &lt;time&gt;{new Date(notification.created_at).toLocaleString()}&lt;/time&gt;
+                &lt;/div&gt;
+                ))}
+                &lt;/div&gt;
+                )}
+
+                &lt;button onClick={clearNotifications}&gt;Очистить все&lt;/button&gt;
+                &lt;/div&gt;
+                );
+                }</div>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <h2>События</h2>
+    <div id="eventsContainer" class="events-container">
+        <div style="color: #9CA3AF;">Ожидание подключения...</div>
+    </div>
+</div>
+
+<div class="container">
+    <h2>Уведомления</h2>
+    <div id="notificationsContainer">
+        <p style="color: #9CA3AF;">Уведомления будут отображаться здесь...</p>
+    </div>
+</div>
+
+<!-- Include EventSource Polyfill (optional) -->
+<script src="https://cdn.jsdelivr.net/npm/event-source-polyfill@1.0.31/src/eventsource.min.js"></script>
+
+<script>
+    let eventSource = null;
+    let reconnectTimeout = null;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 10;
+    const reconnectDelay = 5000;
+
+    function updateStatus(status, text) {
+        const indicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+
+        indicator.className = `status-indicator ${status}`;
+        statusText.textContent = text;
+    }
+
+    function addEvent(type, data) {
+        const container = document.getElementById('eventsContainer');
+        const time = new Date().toLocaleTimeString();
+
+        const eventHtml = `
+                <div class="event-item">
+                    <div class="event-type">${type}</div>
+                    <div class="event-time">${time}</div>
+                    <div class="event-data">${JSON.stringify(data, null, 2)}</div>
+                </div>
+            `;
+
+        container.insertAdjacentHTML('afterbegin', eventHtml);
+
+        // Keep only last 50 events
+        const events = container.querySelectorAll('.event-item');
+        if (events.length > 50) {
+            events[events.length - 1].remove();
+        }
+    }
+
+    function addNotification(data) {
+        const container = document.getElementById('notificationsContainer');
+        const time = new Date(data.created_at || Date.now()).toLocaleString();
+
+        const notificationHtml = `
+                <div class="notification">
+                    <div class="notification-content">
+                        <div class="notification-title">${data.title || data.event_type || 'Уведомление'}</div>
+                        <div class="notification-message">${data.message}</div>
+                        <div class="notification-time">${time}</div>
+                    </div>
+                    ${data.action_url ? `<a href="${data.action_url}" class="notification-action">Открыть</a>` : ''}
+                </div>
+            `;
+
+        container.insertAdjacentHTML('afterbegin', notificationHtml);
+    }
+
+    function connect() {
+        const baseUrl = document.getElementById('baseUrl').value.trim();
+        const token = document.getElementById('jwtToken').value.trim();
+        const authMethod = document.querySelector('input[name="authMethod"]:checked').value;
+
+        if (!baseUrl || !token) {
+            alert('Пожалуйста, заполните все поля');
+            return;
+        }
+
+        // Disconnect existing connection
+        disconnect();
+
+        updateStatus('connecting', 'Подключение...');
+
+        try {
+            if (authMethod === 'polyfill' && window.EventSourcePolyfill) {
+                // Use polyfill with headers
+                eventSource = new EventSourcePolyfill(
+                    `${baseUrl}/client-notify/sse/subscribe`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        },
+                        withCredentials: true
+                    }
+                );
+            } else {
+                // Use native EventSource with query parameter
+                const url = `${baseUrl}/client-notify/sse/subscribe?token=${encodeURIComponent(token)}`;
+                eventSource = new EventSource(url);
+            }
+
+            // Event handlers
+            eventSource.onopen = () => {
+                updateStatus('connected', 'Подключено');
+                addEvent('CONNECTED', { message: 'Successfully connected to SSE' });
+                reconnectAttempts = 0;
+
+                document.getElementById('connectBtn').disabled = true;
+                document.getElementById('disconnectBtn').disabled = false;
+            };
+
+            eventSource.addEventListener('notification', (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    addEvent('NOTIFICATION', data);
+                    addNotification(data);
+                } catch (error) {
+                    console.error('Error parsing notification:', error);
+                    addEvent('ERROR', { message: 'Failed to parse notification data' });
+                }
+            });
+
+            eventSource.addEventListener('ping', (event) => {
+                addEvent('PING', { data: event.data });
+            });
+
+            eventSource.onmessage = (event) => {
+                addEvent('MESSAGE', { data: event.data });
+            };
+
+            eventSource.onerror = (error) => {
+                console.error('SSE Error:', error);
+                updateStatus('disconnected', 'Ошибка подключения');
+                addEvent('ERROR', { message: 'Connection error occurred' });
+
+                if (eventSource.readyState === EventSource.CLOSED) {
+                    attemptReconnect();
+                }
+            };
+
+        } catch (error) {
+            console.error('Failed to create EventSource:', error);
+            updateStatus('disconnected', 'Ошибка');
+            addEvent('ERROR', { message: error.message });
+            alert(`Ошибка: ${error.message}`);
+        }
+    }
+
+    function attemptReconnect() {
+        if (reconnectAttempts >= maxReconnectAttempts) {
+            updateStatus('disconnected', 'Превышено количество попыток');
+            addEvent('RECONNECT_FAILED', { attempts: reconnectAttempts });
+            document.getElementById('connectBtn').disabled = false;
+            document.getElementById('disconnectBtn').disabled = true;
+            return;
+        }
+
+        reconnectAttempts++;
+        const delay = reconnectDelay * Math.min(reconnectAttempts, 5);
+
+        updateStatus('connecting', `Переподключение через ${delay/1000}с...`);
+        addEvent('RECONNECTING', { attempt: reconnectAttempts, delay: delay });
+
+        reconnectTimeout = setTimeout(() => {
+            connect();
+        }, delay);
+    }
+
+    function disconnect() {
+        if (reconnectTimeout) {
+            clearTimeout(reconnectTimeout);
+            reconnectTimeout = null;
+        }
+
+        if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+        }
+
+        updateStatus('disconnected', 'Отключено');
+        addEvent('DISCONNECTED', { message: 'Manually disconnected' });
+
+        document.getElementById('connectBtn').disabled = false;
+        document.getElementById('disconnectBtn').disabled = true;
+    }
+
+    function clearEvents() {
+        document.getElementById('eventsContainer').innerHTML = '<div style="color: #9CA3AF;">События очищены</div>';
+    }
+
+    function showTab(tabName) {
+        // Hide all tabs
+        document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+        // Show selected tab
+        document.querySelector(`.tab:nth-child(${tabName === 'simple' ? 1 : tabName === 'advanced' ? 2 : 3})`).classList.add('active');
+        document.getElementById(tabName).classList.add('active');
+    }
+
+    // Request notification permission
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+    }
+</script>
+</body>
+</html>
