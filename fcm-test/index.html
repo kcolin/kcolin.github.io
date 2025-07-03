@@ -21,6 +21,57 @@
             background-color: #f9f9f9;
         }
 
+        .env-selector {
+            background-color: #e8f4f8;
+            border: 2px solid #2196F3;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .env-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .env-button {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #2196F3;
+            background-color: white;
+            color: #2196F3;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .env-button.active {
+            background-color: #2196F3;
+            color: white;
+        }
+
+        .env-button:hover:not(.active) {
+            background-color: #e3f2fd;
+        }
+
+        .env-status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+
+        .env-dev {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .env-prod {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+
         button {
             background-color: #4CAF50;
             color: white;
@@ -59,6 +110,24 @@
             font-size: 1.1em;
         }
 
+        .notification-env {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            margin-left: 10px;
+        }
+
+        .notification-env.dev {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .notification-env.prod {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+
         .error {
             color: #D8000C;
             background-color: #FFD2D2;
@@ -83,10 +152,54 @@
             word-break: break-all;
             font-size: 0.9em;
         }
+
+        .subscriptions-info {
+            display: flex;
+            gap: 20px;
+            margin-top: 15px;
+        }
+
+        .subscription-box {
+            flex: 1;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: white;
+            border: 1px solid #ddd;
+        }
+
+        .subscription-box h4 {
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+
+        .subscription-box.dev {
+            border-color: #ffc107;
+        }
+
+        .subscription-box.prod {
+            border-color: #17a2b8;
+        }
+
+        .token-display {
+            font-size: 0.8em;
+            word-break: break-all;
+            color: #666;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
-<h1>FCM Тестовый стенд - ffff</h1>
+<h1>FCM Тестовый стенд</h1>
+
+<div class="env-selector">
+    <h2>Выбор окружения</h2>
+    <p>Выберите окружение для работы с уведомлениями:</p>
+    <div class="env-buttons">
+        <button class="env-button" id="devButton" onclick="switchEnvironment('dev')">DEV</button>
+        <button class="env-button" id="prodButton" onclick="switchEnvironment('prod')">PROD</button>
+    </div>
+    <div id="envStatus" class="env-status"></div>
+</div>
 
 <div class="container">
     <h2>Статус службы</h2>
@@ -105,6 +218,19 @@
         <p>Токен FCM: <span id="tokenDisplay"></span></p>
         <button id="copyTokenButton">Скопировать токен</button>
         <div id="copySuccess" class="success hidden">Токен скопирован в буфер обмена!</div>
+    </div>
+
+    <div class="subscriptions-info">
+        <div class="subscription-box dev">
+            <h4>DEV подписка</h4>
+            <div id="devSubscriptionStatus">Не подписан</div>
+            <div class="token-display" id="devToken"></div>
+        </div>
+        <div class="subscription-box prod">
+            <h4>PROD подписка</h4>
+            <div id="prodSubscriptionStatus">Не подписан</div>
+            <div class="token-display" id="prodToken"></div>
+        </div>
     </div>
 </div>
 
@@ -142,32 +268,41 @@
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-messaging.js"></script>
 
 <script>
-    // Конфигурация Firebase (заполните из консоли Firebase)
-    const firebaseConfig = {
-        apiKey: "AIzaSyCs84Ur0gz4qCXcHViv-wH4hbU6Y1SO9IE",
-        authDomain: "dev-volos-rent.firebaseapp.com",
-        projectId: "dev-volos-rent",
-        storageBucket: "dev-volos-rent.firebasestorage.app",
-        messagingSenderId: "84722802575",
-        appId: "1:84722802575:web:56a1d0afdf27102d6cb5fa"
+    // Конфигурации Firebase
+    const firebaseConfigs = {
+        dev: {
+            apiKey: "AIzaSyCs84Ur0gz4qCXcHViv-wH4hbU6Y1SO9IE",
+            authDomain: "dev-volos-rent.firebaseapp.com",
+            projectId: "dev-volos-rent",
+            storageBucket: "dev-volos-rent.firebasestorage.app",
+            messagingSenderId: "84722802575",
+            appId: "1:84722802575:web:56a1d0afdf27102d6cb5fa"
+        },
+        prod: {
+            apiKey: "AIzaSyAalCX2FgJioQ1iWBn26_gmk5Mh89UGpTo",
+            authDomain: "volos-rent-357a1.firebaseapp.com",
+            projectId: "volos-rent-357a1",
+            storageBucket: "volos-rent-357a1.firebasestorage.app",
+            messagingSenderId: "512437606780",
+            appId: "1:512437606780:web:fa8e8f14a7e6fc48efacf9"
+        }
     };
 
     // Глобальные переменные
+    let currentEnv = 'dev';
     let messaging;
     let swRegistration;
-    const subscribedTopics = new Set();
+    const subscribedTopics = new Map(); // Изменено на Map для хранения тем по окружениям
+    const subscriptions = {
+        dev: null,
+        prod: null
+    };
 
     // Инициализация
     function initApp() {
-        // Инициализация Firebase
-        firebase.initializeApp(firebaseConfig);
-        messaging = firebase.messaging();
-
-        // Обновляем UI
-        updateUI();
-
-        // Инициализируем service worker
-        initServiceWorker();
+        // Загружаем сохраненное окружение
+        const savedEnv = localStorage.getItem('selectedEnv') || 'dev';
+        switchEnvironment(savedEnv);
 
         // Обработчики кнопок
         document.getElementById('subscribeButton').addEventListener('click', subscribeUser);
@@ -177,8 +312,52 @@
         document.getElementById('subscribeTopicButton').addEventListener('click', subscribeTopic);
         document.getElementById('unsubscribeTopicButton').addEventListener('click', unsubscribeTopic);
 
-        // Загружаем подписки на темы из localStorage
+        // Загружаем подписки из localStorage
+        loadSubscriptionsFromStorage();
         loadTopicsFromStorage();
+
+        // Инициализируем service worker
+        initServiceWorker();
+    }
+
+    // Переключение окружения
+    function switchEnvironment(env) {
+        currentEnv = env;
+        localStorage.setItem('selectedEnv', env);
+
+        // Обновляем UI
+        document.getElementById('devButton').classList.toggle('active', env === 'dev');
+        document.getElementById('prodButton').classList.toggle('active', env === 'prod');
+
+        const envStatus = document.getElementById('envStatus');
+        envStatus.textContent = `Активное окружение: ${env.toUpperCase()}`;
+        envStatus.className = `env-status env-${env}`;
+
+        // Переинициализируем Firebase с новой конфигурацией
+        if (firebase.apps.length > 0) {
+            firebase.app().delete().then(() => {
+                initializeFirebase();
+            });
+        } else {
+            initializeFirebase();
+        }
+
+        logMessage(`Переключено на окружение: ${env.toUpperCase()}`);
+    }
+
+    // Инициализация Firebase
+    function initializeFirebase() {
+        firebase.initializeApp(firebaseConfigs[currentEnv]);
+        messaging = firebase.messaging();
+
+        // Обновляем UI
+        updateUI();
+
+        // Проверяем существующую подписку для текущего окружения
+        checkSubscription();
+
+        // Обновляем список тем для текущего окружения
+        updateTopicsList();
     }
 
     // Инициализация Service Worker
@@ -197,9 +376,6 @@
 
                 // Проверяем текущее разрешение на уведомления
                 checkNotificationPermission();
-
-                // Проверяем существующую подписку
-                checkSubscription();
 
                 // Слушаем сообщения от Service Worker
                 navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
@@ -239,14 +415,17 @@
         try {
             const currentToken = await messaging.getToken();
             if (currentToken) {
-                logMessage('Найдена существующая подписка с токеном: ' + currentToken);
+                logMessage(`Найдена существующая подписка ${currentEnv.toUpperCase()} с токеном: ${currentToken}`);
+                subscriptions[currentEnv] = currentToken;
                 updateSubscriptionUI(currentToken);
+                updateSubscriptionStatuses();
                 document.getElementById('unsubscribeButton').disabled = false;
                 document.getElementById('subscribeButton').disabled = true;
             } else {
-                logMessage('Подписка не найдена');
+                logMessage(`Подписка для ${currentEnv.toUpperCase()} не найдена`);
                 document.getElementById('unsubscribeButton').disabled = true;
                 document.getElementById('subscribeButton').disabled = false;
+                document.getElementById('subscriptionContainer').classList.add('hidden');
             }
         } catch (error) {
             console.error('Ошибка при проверке подписки:', error);
@@ -269,8 +448,11 @@
                 const currentToken = await messaging.getToken();
 
                 if (currentToken) {
-                    logMessage('Успешная подписка с токеном: ' + currentToken);
+                    logMessage(`Успешная подписка ${currentEnv.toUpperCase()} с токеном: ${currentToken}`);
+                    subscriptions[currentEnv] = currentToken;
+                    saveSubscriptionsToStorage();
                     updateSubscriptionUI(currentToken);
+                    updateSubscriptionStatuses();
                     document.getElementById('unsubscribeButton').disabled = false;
                     document.getElementById('subscribeButton').disabled = true;
                 } else {
@@ -296,12 +478,17 @@
             if (currentToken) {
                 // Удаляем токен
                 await messaging.deleteToken();
-                logMessage('Успешная отписка от уведомлений');
+                logMessage(`Успешная отписка от уведомлений ${currentEnv.toUpperCase()}`);
+
+                // Обновляем данные
+                subscriptions[currentEnv] = null;
+                saveSubscriptionsToStorage();
 
                 // Обновляем UI
                 document.getElementById('subscriptionContainer').classList.add('hidden');
                 document.getElementById('unsubscribeButton').disabled = true;
                 document.getElementById('subscribeButton').disabled = false;
+                updateSubscriptionStatuses();
             }
         } catch (error) {
             console.error('Ошибка отписки:', error);
@@ -313,6 +500,35 @@
     function updateSubscriptionUI(token) {
         document.getElementById('tokenDisplay').textContent = token;
         document.getElementById('subscriptionContainer').classList.remove('hidden');
+    }
+
+    // Обновление статусов подписок
+    function updateSubscriptionStatuses() {
+        // DEV подписка
+        const devStatus = document.getElementById('devSubscriptionStatus');
+        const devToken = document.getElementById('devToken');
+        if (subscriptions.dev) {
+            devStatus.textContent = 'Подписан';
+            devStatus.style.color = '#4F8A10';
+            devToken.textContent = `Токен: ${subscriptions.dev.substring(0, 20)}...`;
+        } else {
+            devStatus.textContent = 'Не подписан';
+            devStatus.style.color = '#666';
+            devToken.textContent = '';
+        }
+
+        // PROD подписка
+        const prodStatus = document.getElementById('prodSubscriptionStatus');
+        const prodToken = document.getElementById('prodToken');
+        if (subscriptions.prod) {
+            prodStatus.textContent = 'Подписан';
+            prodStatus.style.color = '#4F8A10';
+            prodToken.textContent = `Токен: ${subscriptions.prod.substring(0, 20)}...`;
+        } else {
+            prodStatus.textContent = 'Не подписан';
+            prodStatus.style.color = '#666';
+            prodToken.textContent = '';
+        }
     }
 
     // Обработка сообщений от Service Worker
@@ -328,7 +544,7 @@
 
             const titleElement = document.createElement('div');
             titleElement.className = 'notification-title';
-            titleElement.textContent = notification.title || 'Без заголовка';
+            titleElement.innerHTML = `${notification.title || 'Без заголовка'} <span class="notification-env ${currentEnv}">${currentEnv.toUpperCase()}</span>`;
 
             const bodyElement = document.createElement('div');
             bodyElement.textContent = notification.body || 'Без содержимого';
@@ -360,7 +576,7 @@
 
             container.insertBefore(notificationElement, container.firstChild);
 
-            logMessage('Получено уведомление: ' + notification.title);
+            logMessage(`Получено уведомление ${currentEnv.toUpperCase()}: ${notification.title}`);
         }
     }
 
@@ -402,18 +618,20 @@
             return;
         }
 
-        if (subscribedTopics.has(topic)) {
-            logMessage(`Вы уже подписаны на тему "${topic}"`);
+        const envTopics = subscribedTopics.get(currentEnv) || new Set();
+
+        if (envTopics.has(topic)) {
+            logMessage(`Вы уже подписаны на тему "${topic}" в ${currentEnv.toUpperCase()}`);
             return;
         }
 
         // В реальном приложении здесь был бы API-вызов для подписки на тему
-        // FCM не позволяет напрямую подписывать на темы из клиента, это делается через backend
-        subscribedTopics.add(topic);
+        envTopics.add(topic);
+        subscribedTopics.set(currentEnv, envTopics);
         saveTopicsToStorage();
         updateTopicsList();
 
-        logMessage(`Подписка на тему "${topic}" успешно оформлена`);
+        logMessage(`Подписка на тему "${topic}" успешно оформлена в ${currentEnv.toUpperCase()}`);
         topicInput.value = '';
     }
 
@@ -427,17 +645,19 @@
             return;
         }
 
-        if (!subscribedTopics.has(topic)) {
-            logMessage(`Вы не подписаны на тему "${topic}"`);
+        const envTopics = subscribedTopics.get(currentEnv);
+
+        if (!envTopics || !envTopics.has(topic)) {
+            logMessage(`Вы не подписаны на тему "${topic}" в ${currentEnv.toUpperCase()}`);
             return;
         }
 
         // В реальном приложении здесь был бы API-вызов для отписки от темы
-        subscribedTopics.delete(topic);
+        envTopics.delete(topic);
         saveTopicsToStorage();
         updateTopicsList();
 
-        logMessage(`Отписка от темы "${topic}" успешно выполнена`);
+        logMessage(`Отписка от темы "${topic}" успешно выполнена в ${currentEnv.toUpperCase()}`);
         topicInput.value = '';
     }
 
@@ -446,14 +666,16 @@
         const topicsList = document.getElementById('topicsList');
         topicsList.innerHTML = '';
 
-        if (subscribedTopics.size === 0) {
+        const envTopics = subscribedTopics.get(currentEnv);
+
+        if (!envTopics || envTopics.size === 0) {
             const li = document.createElement('li');
-            li.textContent = 'Нет подписок на темы';
+            li.textContent = `Нет подписок на темы в ${currentEnv.toUpperCase()}`;
             topicsList.appendChild(li);
             return;
         }
 
-        subscribedTopics.forEach(topic => {
+        envTopics.forEach(topic => {
             const li = document.createElement('li');
             li.textContent = topic;
             topicsList.appendChild(li);
@@ -462,7 +684,11 @@
 
     // Сохранение тем в localStorage
     function saveTopicsToStorage() {
-        localStorage.setItem('subscribedTopics', JSON.stringify([...subscribedTopics]));
+        const topicsObj = {};
+        subscribedTopics.forEach((topics, env) => {
+            topicsObj[env] = [...topics];
+        });
+        localStorage.setItem('subscribedTopics', JSON.stringify(topicsObj));
     }
 
     // Загрузка тем из localStorage
@@ -473,10 +699,34 @@
             try {
                 const parsedTopics = JSON.parse(topics);
                 subscribedTopics.clear();
-                parsedTopics.forEach(topic => subscribedTopics.add(topic));
+
+                Object.keys(parsedTopics).forEach(env => {
+                    subscribedTopics.set(env, new Set(parsedTopics[env]));
+                });
+
                 updateTopicsList();
             } catch (error) {
                 console.error('Ошибка при загрузке тем из localStorage:', error);
+            }
+        }
+    }
+
+    // Сохранение подписок в localStorage
+    function saveSubscriptionsToStorage() {
+        localStorage.setItem('subscriptions', JSON.stringify(subscriptions));
+    }
+
+    // Загрузка подписок из localStorage
+    function loadSubscriptionsFromStorage() {
+        const saved = localStorage.getItem('subscriptions');
+
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                Object.assign(subscriptions, parsed);
+                updateSubscriptionStatuses();
+            } catch (error) {
+                console.error('Ошибка при загрузке подписок из localStorage:', error);
             }
         }
     }
@@ -485,7 +735,7 @@
     function updateUI() {
         // Настраиваем обработчик сообщений Firebase
         messaging.onMessage((payload) => {
-            logMessage('Получено сообщение в foreground: ' + JSON.stringify(payload));
+            logMessage(`Получено сообщение в foreground ${currentEnv.toUpperCase()}: ${JSON.stringify(payload)}`);
 
             // Отображаем уведомление
             const notification = payload.notification;
@@ -507,10 +757,11 @@
                 const notificationOptions = {
                     body: notification.body,
                     icon: notification.icon || '/favicon.ico',
-                    data: payload.data
+                    data: payload.data,
+                    tag: `${currentEnv}-${Date.now()}`
                 };
 
-                swRegistration.showNotification(notification.title, notificationOptions);
+                swRegistration.showNotification(`[${currentEnv.toUpperCase()}] ${notification.title}`, notificationOptions);
             }
         });
     }
