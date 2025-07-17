@@ -365,7 +365,7 @@
         if ('serviceWorker' in navigator && 'PushManager' in window) {
             try {
                 // Регистрируем service worker
-                swRegistration = await navigator.serviceWorker.register('./firebase-messaging-sw.js');
+                swRegistration = await navigator.serviceWorker.register('./firebase-messaging-sw.js?v100');
                 logMessage('Service Worker зарегистрирован');
                 document.getElementById('serviceWorkerStatus').textContent = 'Service Worker успешно зарегистрирован';
                 document.getElementById('serviceWorkerStatus').className = 'success';
