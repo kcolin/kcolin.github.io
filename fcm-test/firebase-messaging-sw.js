@@ -6,13 +6,13 @@ importScripts('https://www.gstatic.com/firebasejs/8.10.1/firebase-messaging.js')
 // Конфигурации Firebase для разных окружений
 const firebaseConfigs = {
     dev: {
-        apiKey: "AIzaSyCs84Ur0gz4qCXcHViv-wH4hbU6Y1SO9IE",
-        authDomain: "dev-volos-rent.firebaseapp.com",
-        projectId: "dev-volos-rent",
-        storageBucket: "dev-volos-rent.firebasestorage.app",
-        messagingSenderId: "84722802575",
-        appId: "1:84722802575:web:56a1d0afdf27102d6cb5fa"
-    },
+            apiKey: "AIzaSyBdaHpKVY2UY_oTma9jwB4K23UhcviFrSM",
+            authDomain: "fir-volos-dev.firebaseapp.com",
+            projectId: "fir-volos-dev",
+            storageBucket: "fir-volos-dev.firebasestorage.app",
+            messagingSenderId: "1030402716972",
+            appId: "1:1030402716972:web:5b288df3fbf43d27692889"
+        },
     prod: {
         apiKey: "AIzaSyAalCX2FgJioQ1iWBn26_gmk5Mh89UGpTo",
         authDomain: "volos-rent-357a1.firebaseapp.com",
