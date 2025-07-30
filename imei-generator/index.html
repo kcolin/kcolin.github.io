@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IMEI Generator</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            width: 100%;
+            max-width: 600px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+            font-size: 1.1em;
+        }
+
+        select, input[type="number"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        select:focus, input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-row {
+            display: flex;
+            gap: 20px;
+        }
+
+        .form-row .form-group {
+            flex: 1;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn.copy-btn {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            margin-top: 15px;
+        }
+
+        .btn.copy-btn:hover {
+            box-shadow: 0 10px 20px rgba(40, 167, 69, 0.3);
+        }
+
+        .btn.copy-btn.success {
+            background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+        }
+
+        .result-section {
+            margin-top: 30px;
+            display: none;
+        }
+
+        .stats {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .stats h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .stats p {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        textarea {
+            width: 100%;
+            height: 300px;
+            padding: 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            resize: vertical;
+            background: #f8f9fa;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            display: none;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+
+            .form-row {
+                flex-direction: column;
+                gap: 0;
+            }
+
+            h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>IMEI Generator</h1>
+
+    <form id="imei-form">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="manufacturer">Производитель:</label>
+                <select id="manufacturer">
+                    <option value="">Случайный</option>
+                    <option value="Apple">Apple</option>
+                    <option value="Samsung">Samsung</option>
+                    <option value="Xiaomi">Xiaomi</option>
+                    <option value="Google">Google</option>
+                    <option value="OnePlus">OnePlus</option>
+                    <option value="Huawei">Huawei</option>
+                    <option value="Motorola">Motorola</option>
+                    <option value="LG">LG</option>
+                    <option value="Sony">Sony</option>
+                    <option value="Nokia">Nokia</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="count">Количество:</label>
+                <input type="number" id="count" min="1" max="10000" value="256">
+            </div>
+        </div>
+
+        <button type="submit" class="btn">Генерировать IMEI</button>
+    </form>
+
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        Генерация IMEI...
+    </div>
+
+    <div class="result-section" id="result-section">
+        <div class="stats" id="stats">
+            <h3>Статистика генерации</h3>
+            <p id="stats-text"></p>
+        </div>
+
+        <textarea id="imei-output" readonly placeholder="Сгенерированные IMEI появятся здесь..."></textarea>
+        <button type="button" class="btn copy-btn" id="copy-btn">Скопировать все IMEI</button>
+    </div>
+</div>
+
+<script>
+    (function() {
+        'use strict';
+
+        // Real TAC database
+        var tacData = {
+            'Apple': ['01326300','01332700','01332900','01388300','35310104','35332807','35405900','35421209','35648104','35699505','35700104','35700204','35722404','35730008','35744105','35788504','35824005','35846209','35851009','35869205','35876105','35896704','35909205','35918804','35920605','35925406','35928504','35934807','35968903','35980403','35984109','35993405','99000185','99000562'],
+            'Samsung': ['35168409','35174605','35191405','35196304','35200107','35226007','35238402','35254610','35316807','35326607','35332009','35357800','35357809','35365100','35372200','35373901','35387609','35391805','35405600','35416201','35423101','35432101','35433101','35442102','35450502','35451900','35456404','35464002','35465300','35466101','35481000','35502604','35503604','35503704','35504504','35511104','35518105','35518405','35518805','35520405','35524103','35533005','35537907','35544106','35545606','35550000','35556005','35556600','35560900','35566600','35569100','35571405','35588903','35590302','35611702','35612807','35619503','35637303','35638901','35645407','35647101','35648900','35662007','35666205','35679104','35680604','35682604','35684503','35685904','35686303','35693306','35694103','35694203','35694506','35695406','35699001','35699604','35700603','35701006','35701903','35708005','35711405','35714904','35723404','35726801','35733104','35739804','35741999','35742099','35743908','35745108','35747903','35749701','35750200','35752008','35759107','35762402','35765808','35765900','35774605','35788704','35789805','35790502','35791202','35793802','35796005','35803106','35808004','35815904','35824005','35825005','35828005','35829805','35830404','35836905','35837304','35838000','35838401','35841007','35848005','35848205','35850000','35851806','35853708','35855100','35856304','35862607','35869105','35871405','35872607','35873905','35874805','35874905','35875905','35876205','35876305','35876405','35876605','35880005','35881505','35884600','35885006','35890904','35896104','35901302','35902803','35903503','35904201','35907800','35908508','35909408','35910008','35910108','35910208','35910604','35912102','35914004','35916804','35918605','35919105','35920804','35921104','35925005','35926005','35929105','35930005','35930700','35935101','35936004','35936304','35937000','35938000','35939600','35948604','35950005','35956104','35959800','35965101','35972100','35972900','35973000','35974107','35979701','35979903','35980908','35982503','35984604','35990102','35993102','99000562','99001087'],
+            'Xiaomi': ['86244603','86718604','86761604','86775204','86791304','86798513','86812713','86815203','86819104','86820204','86823604','86831304','86832704','86844104','86851604','86872604','86880504','86882304','86891204','86891304','86891404','86892504','86907504','86908004','86908104','86908204','86908804','86909004','86920104','86923604','86928104','86931404','86947203','86947213','86950104','86951004','86952204','86952704','86958204','86958304','86959804','86960604','86963304','86966604','86967104','86972204','86973304','86975404','86977404','86983112'],
+            'Google': ['35503209','35824109','35909311','35851412','35481810','35557111','35698912','35742113','35819014','35925415'],
+            'OnePlus': ['86178103','86484904','86761112','86814514','86753215','86892916','86923813','86691214','86785615','86812016'],
+            'Huawei': ['86033204','86365503','86798502','86983301','86723114','86816515','86902316','86954517','86987618','86041619'],
+            'Motorola': ['35517103','35692113','35754214','35812515','35867616','35923717','35981818','35425619','35563720','35698821'],
+            'LG': ['35929206','35485306','35662407','35798508','35834609','35912710','35967811','35423912','35589013','35764114'],
+            'Sony': ['35208508','35403207','35698309','35823315','35918417','35467812','35592913','35758014','35893115','35038216'],
+            'Nokia': ['35918417','35847518','35774619','35692720','35615821','35532922','35458023','35389124','35314225','35245326']
+        };
+
+        // Helper functions
+        function getRandomTAC(manufacturer) {
+            var tacs = tacData[manufacturer];
+            return tacs[Math.floor(Math.random() * tacs.length)];
+        }
+
+        function generateSerial() {
+            var serial = '';
+            for (var i = 0; i < 6; i++) {
+                serial += Math.floor(Math.random() * 10);
+            }
+            return serial;
+        }
+
+        function calculateCheckDigit(imei14) {
+            var sum = 0;
+            for (var i = 0; i < imei14.length; i++) {
+                var digit = parseInt(imei14[i]);
+                if (i % 2 === 1) {
+                    digit *= 2;
+                    if (digit > 9) {
+                        digit = Math.floor(digit / 10) + (digit % 10);
+                    }
+                }
+                sum += digit;
+            }
+            var remainder = sum % 10;
+            return remainder === 0 ? '0' : (10 - remainder).toString();
+        }
+
+        function validateIMEI(imei) {
+            if (imei.length !== 15) return false;
+            var imei14 = imei.substring(0, 14);
+            var check = imei.substring(14);
+            var calculatedCheck = calculateCheckDigit(imei14);
+            return check === calculatedCheck;
+        }
+
+        function generateIMEI(manufacturer) {
+            if (!manufacturer) {
+                var brands = Object.keys(tacData);
+                manufacturer = brands[Math.floor(Math.random() * brands.length)];
+            }
+
+            var tac = getRandomTAC(manufacturer);
+            var serial = generateSerial();
+            var imei14 = tac + serial;
+            var checkDigit = calculateCheckDigit(imei14);
+            var fullIMEI = imei14 + checkDigit;
+
+            return {
+                full: fullIMEI,
+                manufacturer: manufacturer,
+                valid: validateIMEI(fullIMEI)
+            };
+        }
+
+        // DOM elements
+        var form = document.getElementById('imei-form');
+        var manufacturerSelect = document.getElementById('manufacturer');
+        var countInput = document.getElementById('count');
+        var loading = document.getElementById('loading');
+        var resultSection = document.getElementById('result-section');
+        var output = document.getElementById('imei-output');
+        var copyBtn = document.getElementById('copy-btn');
+        var stats = document.getElementById('stats-text');
+
+        // Event listeners
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            generateMultipleIMEI();
+        });
+
+        copyBtn.addEventListener('click', function() {
+            copyAllIMEI();
+        });
+
+        function generateMultipleIMEI() {
+            var manufacturer = manufacturerSelect.value || null;
+            var count = parseInt(countInput.value) || 256;
+
+            if (count < 1 || count > 10000) {
+                alert('Количество должно быть от 1 до 10000');
+                return;
+            }
+
+            // Show loading
+            loading.style.display = 'block';
+            resultSection.style.display = 'none';
+
+            // Use setTimeout to allow UI update
+            setTimeout(function() {
+                var imeiList = [];
+                var validCount = 0;
+                var attempts = 0;
+                var maxAttempts = count * 10; // Safety limit
+
+                while (validCount < count && attempts < maxAttempts) {
+                    attempts++;
+                    var imeiData = generateIMEI(manufacturer);
+
+                    if (imeiData.valid) {
+                        imeiList.push(imeiData.full);
+                        validCount++;
+                    }
+                }
+
+                // Update UI
+                output.value = imeiList.join('\n');
+                stats.textContent = `Сгенерировано ${validCount} валидных IMEI из ${attempts} попыток`;
+
+                // Hide loading and show results
+                loading.style.display = 'none';
+                resultSection.style.display = 'block';
+
+                // Scroll to results
+                resultSection.scrollIntoView({ behavior: 'smooth' });
+            }, 100);
+        }
+
+        function copyAllIMEI() {
+            output.select();
+            output.setSelectionRange(0, 99999); // For mobile devices
+
+            try {
+                var success = document.execCommand('copy');
+                if (success) {
+                    copyBtn.textContent = 'Скопировано!';
+                    copyBtn.classList.add('success');
+
+                    setTimeout(function() {
+                        copyBtn.textContent = 'Скопировать все IMEI';
+                        copyBtn.classList.remove('success');
+                    }, 2000);
+                } else {
+                    alert('Ошибка копирования. Попробуйте выделить текст вручную.');
+                }
+            } catch (err) {
+                alert('Ошибка копирования. Попробуйте выделить текст вручную.');
+            }
+        }
+    })();
+</script>
+</body>
+</html>
